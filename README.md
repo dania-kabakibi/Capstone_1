@@ -4,7 +4,8 @@
 The goal of this project is to use SQL and Excel to analyze sales data and extract insights about sales performance. The analysis supports business decision-making by identifying trends, top-performing products, and differences across sales channels.
 
 ## Sales Territory
-The analysis focuses on the sales territory managed by Bo Heap.
+The analysis focuses on the Northeast region, specifically the state of Massachusetts. 
+This territory is managed by Bo Heap under Regional Director Michael Jarvis.
 
 ## Tools & Technologies
 - MySQL Workbench (MySQL)
@@ -12,7 +13,7 @@ The analysis focuses on the sales territory managed by Bo Heap.
 - Git & GitHub
 
 ## Project Files
-- Sample_sales_database.pdf – I created this documentation to understand the database structure, including table descriptions, column data types, and sample records
+- Sample_sales_database.pdf – I created this documentation to understand the database structure, including table descriptions, column data types, and sample records.
 (I will add the files name here)
 
 ## Project Demo Video
