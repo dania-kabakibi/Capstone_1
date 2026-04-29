@@ -7,85 +7,102 @@ SELECT * FROM management WHERE SalesManager = 'Bo Heap';
 -- 4, Northeast, Michael Jarvis, Massachusetts, Bo Heap
 -- ==============================================
 
--- What is total revenue overall for sales in the assigned territory, plus 
+-- 1- What is total revenue overall for sales in the assigned territory, plus 
 -- the start date and end date that tell you what period the data covers?
 
-WITH online_sales_cal AS (
-	SELECT SUM(SalesTotal) AS 'online_total_revenue',
-		MIN(Date) AS 'Start_date',
-		MAX(Date) AS 'End_date'
-	FROM online_sales
-	WHERE ShiptoState = 'Massachusetts'),
+SELECT SUM(ss.Sale_Amount) AS 'Total_revenue',
+	MIN(ss.Transaction_Date) AS 'Start_date',
+	MAX(ss.Transaction_Date) AS 'End_date'
+FROM store_sales ss
+JOIN store_locations sl
+ON ss.Store_ID = sl.StoreId
+WHERE sl.State = 'Massachusetts';
 
-store_sales_cal AS (
-	SELECT SUM(ss.Sale_Amount) AS 'store_total_revenue',
-		MIN(ss.Transaction_Date) AS 'Start_date',
-		MAX(ss.Transaction_Date) AS 'End_date'
+-- ==============================================
+
+-- 2- What is the month by month revenue breakdown for the sales territory?
+
+SELECT  
+	DATE_FORMAT(Transaction_Date, '%Y-%m') AS 'Date_YYYY-MM',
+	SUM(Sale_Amount) AS 'monthly_revenue'
+FROM store_sales
+WHERE Store_ID IN (SELECT StoreId FROM store_locations WHERE State = 'Massachusetts')
+GROUP BY DATE_FORMAT(Transaction_Date, '%Y-%m')
+ORDER BY 'Date_YYYY-MM';
+
+-- ==============================================
+
+-- 3- Provide a comparison of total revenue for the specific sales territory 
+-- and the region it belongs to.
+
+WITH territory_total_revenue AS (
+	SELECT SUM(ss.Sale_Amount) AS 'state_total_revenue'
 	FROM store_sales ss
 	JOIN store_locations sl
 	ON ss.Store_ID = sl.StoreId
-	WHERE State = 'Massachusetts')
-
-SELECT 
-	(online_sales_cal.online_total_revenue + store_sales_cal.store_total_revenue) AS 'Total_revenue',
-	LEAST(online_sales_cal.Start_date, store_sales_cal.Start_date) AS 'Start_date',
-    GREATEST(online_sales_cal.End_date, store_sales_cal.End_date) AS 'End_date'
-FROM online_sales_cal, store_sales_cal;
-
--- ==============================================
-
--- What is the month by month revenue breakdown for the sales territory?
-
-SELECT revenue_month, SUM(monthly_revenue) AS 'total_monthly_revenue'
- FROM (
-	 SELECT  
-		DATE_FORMAT(Transaction_Date, '%Y-%m') AS 'revenue_month',
-		SUM(Sale_Amount) AS 'monthly_revenue'
-	FROM store_sales
-	WHERE Store_ID IN (SELECT StoreId FROM store_locations WHERE State = 'Massachusetts')
-	GROUP BY DATE_FORMAT(Transaction_Date, '%Y-%m')
-    
-    UNION ALL
-    
-    SELECT DATE_FORMAT(Date, '%Y-%m') AS 'revenue_month', 
-		SUM(SalesTotal) AS 'monthly_revenue'
-    FROM online_sales
-    WHERE ShiptoState = 'Massachusetts'
-    GROUP BY DATE_FORMAT(Date, '%Y-%m')
-) AS combined_sales
-GROUP BY revenue_month;
+	WHERE State = 'Massachusetts'),
+region_total_revenue AS (
+	SELECT SUM(ss.Sale_Amount) AS 'region_total_revenue'
+	FROM store_sales ss
+	JOIN store_locations sl
+	ON ss.Store_ID = sl.StoreId
+	WHERE State IN (SELECT State FROM management WHERE Region = 'Northeast'))
+SELECT territory_total_revenue.state_total_revenue, region_total_revenue.region_total_revenue
+FROM territory_total_revenue, region_total_revenue;
 
 -- ==============================================
 
--- Provide a comparison of total revenue for the specific sales territory 
--- and the region it belongs to.
+-- 4- What is the number of transactions per month and average transaction size by product 
+-- category for the sales territory?
 
-WITH massachusetts_sales_cal AS (
-	SELECT (
-		SELECT SUM(SalesTotal) AS 'online_state_total_revenue'
-		FROM online_sales
-		WHERE ShiptoState = 'Massachusetts') + 
-		(
-		SELECT SUM(ss.Sale_Amount) AS 'store_state_total_revenue'
-		FROM store_sales ss
-		JOIN store_locations sl
-		ON ss.Store_ID = sl.StoreId
-		WHERE State = 'Massachusetts')
-	AS 'territory_total_revenue'
-	),
-northeast_region_cal AS (
-	SELECT (
-		SELECT SUM(SalesTotal) AS 'online_region_total_revenue'
-		FROM online_sales
-		WHERE ShiptoState IN (SELECT State FROM management WHERE Region = 'Northeast')) +
-	( SELECT SUM(ss.Sale_Amount) AS 'store_region_total_revenue'
-		FROM store_sales ss
-		JOIN store_locations sl
-		ON ss.Store_ID = sl.StoreId
-		WHERE State IN (SELECT State FROM management WHERE Region = 'Northeast'))
-	AS 'region_total_revenue'
-	)
 SELECT 
-	massachusetts_sales_cal.territory_total_revenue AS 'Total_revenue_for_Massachusetts',
-	northeast_region_cal.region_total_revenue AS 'northeast_region_total_revenue'
-FROM massachusetts_sales_cal, northeast_region_cal;
+	ic.Category,
+	COUNT(ss.id) AS 'Num_of_transaction',
+	DATE_FORMAT(ss.Transaction_Date, '%M') AS 'Month',
+    AVG(ss.Sale_Amount) AS 'Average_transaction_size'
+FROM store_sales ss
+JOIN store_locations sl ON ss.Store_ID = sl.StoreId
+JOIN products p ON ss.Prod_Num = p.ProdNum
+JOIN inventory_categories ic ON p.Categoryid = ic.Categoryid
+WHERE sl.State = 'Massachusetts'
+GROUP BY ic.Category, DATE_FORMAT(Transaction_Date, '%M');
+
+-- ==============================================
+
+-- 5- Can you provide a ranking of in-store sales performance by each store in the sales territory, 
+-- or a ranking of online sales performance by state within an online sales territory?
+
+-- Ranking in-store performance for Massachusetts
+SELECT Store_ID,
+	SUM(Sale_Amount) AS 'total_revenue',
+	RANK() OVER (ORDER BY SUM(Sale_Amount) DESC) AS 'in-store_sales_rank'
+FROM store_sales
+WHERE Store_ID IN (SELECT StoreId FROM store_locations WHERE State = 'Massachusetts')
+GROUP BY Store_ID;
+
+-- ==============================================
+
+-- What is your recommendation for where to focus sales attention in the next quarter?
+
+/* 
+Based on my SQL analysis, I observed the following key trends:
+1. Growth & Impact: Monthly revenue in the Massachusetts territory increased gradually from 2022 to 2025. 
+   Furthermore, comparing the state total revenue ($5,733,256.27) to the Northeast regional total 
+   ($24,237,526.98) shows that Massachusetts is a significant contributor, accounting for 
+   nearly 24% of the entire region's revenue.
+
+2. Product Value: The 'Technology & Accessories' category maintains the highest average 
+   transaction size across all months, followed closely by the 'Textbooks' category.
+
+3. Store Performance Gap: There is a substantial performance gap within the territory. 
+   Store 817 is the top performer ($602,183.44), while the second-highest, Store 807, 
+   lags significantly behind ($338,009.10). 
+
+Recommendation:
+I recommend a dual-focus strategy for the next quarter. First, we should maximize high-value 
+categories by prioritizing 'Technology & Accessories' sales across the state through 
+targeted promotions. Second, we must bridge the performance gap between our top-tier 
+and mid-tier locations. Specifically, I recommend using Store 817 as a training model 
+and having the manager of Store 807 observe their sales techniques and floor layout 
+to help increase overall territory revenue.
+*/
